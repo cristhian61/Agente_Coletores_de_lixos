@@ -18,8 +18,17 @@ def construir_matriz():
 
 #Função para exibir a matriz formatada no terminal
 def mostrar_matriz(matriz):
-    for linha in matriz:
-        print(" ".join(linha))
+    for linha in range(20):
+        elementos = []
+
+        for coluna in range(20):
+
+            if linha == agente.linha and coluna == agente.coluna:
+                elementos.append("A")
+            else:
+                elementos.append(matriz[linha][coluna])
+
+        print(" ".join(elementos))
 
 #Função para verificar se a célula na matriz está livre (representada por ".")
 def posicao_livre(matriz, linha, coluna):
@@ -59,6 +68,7 @@ class Agente:
         self.carga = None
         self.pontuacao = 0
         self.passos = 0
+        self.coletados = 0
 
 #Os IFs dentro das funções de movimentação garantem que o agente não saia dos limites da matriz (0 a 19 para linhas e colunas).
     def mover_direita(self):
@@ -80,6 +90,19 @@ class Agente:
         if self.linha < 19:
             self.linha += 1
             self.passos += 1
+
+    def mover_para_direcao(self, direcao):
+        if "cima" in direcao:
+            self.mover_cima()
+
+        if "baixo" in direcao:
+            self.mover_baixo()
+
+        if "esquerda" in direcao:
+            self.mover_esquerda()
+
+        if "direita" in direcao:
+            self.mover_direita()
 
 #Função para observar a posição atual do agente na matriz, retornando o valor da célula correspondente.
     def observar_posicao(self, matriz):
@@ -118,11 +141,13 @@ class Agente:
         if matriz[self.linha][self.coluna] == "O":
             self.carga = "O"
             matriz[self.linha][self.coluna] = "."
+            self.coletados += 1
             return True
 
         if matriz[self.linha][self.coluna] == "R":
             self.carga = "R"
             matriz[self.linha][self.coluna] = "."
+            self.coletados += 1
             return True
 
         return False  # Não há lixo para pegar
@@ -192,22 +217,24 @@ class Agente:
             return self.pegar_lixo(matriz)
         elif acao == "soltar":
             return self.soltar_lixo(matriz)
-        elif acao == "mover_cima":
-            self.mover_cima()
-        elif acao == "mover_baixo":
-            self.mover_baixo()
-        elif acao == "mover_esquerda":
-            self.mover_esquerda()
-        elif acao == "mover_direita":
-            self.mover_direita()
 
+        elif acao == "mover_para_deposito":
+            return self.mover_para_deposito()
+
+        elif acao.startswith("mover_"):
+                    direcao = acao.replace("mover_", "")
+                    self.mover_para_direcao(direcao)
+        
+        
+
+#Função para mover o agente em direção à posição final (19,19) na matriz, chamada quando o agente está carregando algum lixo. O agente se move para baixo e para a direita até alcançar a posição final.
     def mover_para_deposito(self):
         if self.linha <19:
             self.mover_baixo()
         if self.coluna <19:
             self.mover_direita()
         return None
-
+#Função para escolher uma direção aleatória para o agente se mover, garantindo que ele não saia dos limites da matriz. A função retorna a ação de movimento escolhida.
     def movimento_aleatorio(self):
         direcoes = []
 
@@ -224,39 +251,27 @@ class Agente:
 
         return f"mover_{direcao}"
 
-'''#teste
-#Criação da matriz e alocação da posição inicial do robô coletor de lixo (representada por "A") e da posição final (representada por "X")
+
+#================================== Execução ==================================
+
 matriz = construir_matriz()
-matriz[0][0] = "A"
-matriz[19][19] = "X"
-matriz[0][1] = "O"
-matriz[1][0] = "R"
-
+matriz[19][19] = "X"  # Posição final do depósito de lixo
+matriz[0][2] = "R"
 colocar_lixos(matriz)
-
-mostrar_matriz(matriz)
 
 agente = Agente()
 
-print(f"Posição ({agente.linha},{agente.coluna})")
-print("Contem: ", agente.observar_posicao(matriz))
+for passo in range(20):
+    print(f"\n\n---- Passo {passo + 1} ----")
 
-reciclaveis, organicos = agente.encontar_lixo_vizinho(matriz)
-print("Recicláveis vizinhos:", reciclaveis)
-print("Orgânicos vizinhos:", organicos)
+    mostrar_matriz(matriz)
 
-print("Ação: ", agente.decidir_acao(matriz))
+    acao = agente.decidir_acao(matriz)
+    print("Ação escolhida:", acao)
 
-acao = agente.decidir_acao(matriz)
-print("ação escolhida: ", acao)
+    agente.executar_acao(acao, matriz)
 
-agente.executar_acao(acao, matriz)
-print(f"Posição após ação: ({agente.linha},{agente.coluna})")
-print("Contem: ", agente.observar_posicao(matriz))
-
-acao = agente.decidir_acao(matriz)
-print("ação escolhida: ", acao)
-
-agente.executar_acao(acao, matriz)
-print(f"Posição após ação: ({agente.linha},{agente.coluna})")
-print("Contem: ", agente.observar_posicao(matriz))'''
+    print("Posição:", agente.linha, agente.coluna)
+    print("Carga:", agente.carga)
+    print("Coletados:", agente.coletados)
+    print("Pontuação:", agente.pontuacao)
