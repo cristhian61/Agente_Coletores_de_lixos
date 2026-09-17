@@ -1,4 +1,5 @@
 import random
+import copy
 
 
 #================================== Criação do ambiente ==================================
@@ -75,6 +76,20 @@ def construir_matriz_visitas():
             linha.append(0)
         matriz.append(linha)
     return matriz
+
+def criar_ambiente(num_ambientes):
+    ambientes = []
+
+    for i in range(num_ambientes):
+
+        matriz = construir_matriz()
+        matriz[19][19] = "X"
+        colocar_lixos(matriz)
+
+        ambientes.append(matriz)
+
+    return ambientes
+
 
 #================================== Agente ==================================
 
@@ -387,8 +402,8 @@ class AgenteModelo(Agente):
 
 #================================== Execução Agentes ==================================
 #Função implementar o Agente Reativo Simples
-def simular_reativo_simples():
-    NUM_EXECUCOES = 30
+def simular_reativo_simples(ambientes):
+    NUM_EXECUCOES = len(ambientes)
     LIMITE_SEGURACA = 8000
 
     total_coletados = 0
@@ -398,11 +413,9 @@ def simular_reativo_simples():
     sucesso = 0
     taxa_sucesso = 0
 
-    for execucoes in range(NUM_EXECUCOES):
+    for ambiente in ambientes:
 
-        matriz = construir_matriz()
-        matriz[19][19] = "X" # Posição final (depósito)
-        colocar_lixos(matriz)
+        matriz = copy.deepcopy(ambiente)
 
         agente = Agente()
 
@@ -413,7 +426,6 @@ def simular_reativo_simples():
 
         if agente.entregues == 15:
             sucesso += 1
-        taxa_sucesso = (sucesso/NUM_EXECUCOES)*100
         total_coletados += agente.coletados
         total_entregues += agente.entregues
         total_pontuacao += agente.pontuacao
@@ -424,6 +436,7 @@ def simular_reativo_simples():
     media_pontuacao = total_pontuacao / NUM_EXECUCOES
     media_passos = total_passos / NUM_EXECUCOES
 
+    taxa_sucesso = (sucesso/NUM_EXECUCOES)*100
 
     return(
         media_coletados,
@@ -435,8 +448,8 @@ def simular_reativo_simples():
         NUM_EXECUCOES
     )
 
-def simular_baseado_modelo():
-    NUM_EXECUCOES = 30
+def simular_baseado_modelo(ambientes):
+    NUM_EXECUCOES = len(ambientes)
     LIMITE_SEGURACA = 8000
 
     total_coletados = 0
@@ -446,11 +459,9 @@ def simular_baseado_modelo():
     sucesso = 0
     taxa_sucesso = 0
 
-    for execucoes in range(NUM_EXECUCOES):
+    for ambiente in ambientes:
 
-        matriz = construir_matriz()
-        matriz[19][19] = "X" # Posição final (depósito)
-        colocar_lixos(matriz)
+        matriz = copy.deepcopy(ambiente)
 
         agente = AgenteModelo()
 
@@ -461,7 +472,6 @@ def simular_baseado_modelo():
 
         if agente.entregues == 15:
             sucesso += 1
-        taxa_sucesso = (sucesso/NUM_EXECUCOES)*100
         total_coletados += agente.coletados
         total_entregues += agente.entregues
         total_pontuacao += agente.pontuacao
@@ -472,6 +482,7 @@ def simular_baseado_modelo():
     media_pontuacao = total_pontuacao / NUM_EXECUCOES
     media_passos = total_passos / NUM_EXECUCOES
 
+    taxa_sucesso = (sucesso/NUM_EXECUCOES)*100
 
     return(
         media_coletados,
@@ -485,7 +496,9 @@ def simular_baseado_modelo():
 
 #================================== Execução Resultados ==================================
 
-coletados, entregues, pontuacao, passos, sucessos, taxa_conc, NUM_EXEC = simular_reativo_simples()
+ambientes = criar_ambiente(30)
+
+coletados, entregues, pontuacao, passos, sucessos, taxa_conc, NUM_EXEC = simular_reativo_simples(ambientes)
 
 print("\n======== AGENTE REATIVO SIMPLES ========")
 
@@ -500,7 +513,7 @@ print(f"\nExecuçoes concluídas: {sucessos}/{NUM_EXEC}")
 print(f"Taxa de conclusão: {taxa_conc:.2f}%\n")
 
 
-coletados, entregues, pontuacao, passos, sucessos, taxa_conc, NUM_EXEC = simular_baseado_modelo()
+coletados, entregues, pontuacao, passos, sucessos, taxa_conc, NUM_EXEC = simular_baseado_modelo(ambientes)
 
 print("\n======= AGENTE BASEADO EM MODELO =======")
 
