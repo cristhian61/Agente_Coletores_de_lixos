@@ -23,7 +23,7 @@ def mostrar_matriz(matriz):
 
         for coluna in range(20):
 
-            if linha == agente.linha and coluna == agente.coluna:
+            if linha == Agente.linha and coluna == Agente.coluna:
                 elementos.append("A")
             else:
                 elementos.append(matriz[linha][coluna])
@@ -65,6 +65,16 @@ def contar_lixos(matriz):
                 if elemento == "O" or elemento == "R":
                     quantidade += 1
         return quantidade
+
+def construir_matriz_visitas():
+    matriz = []
+
+    for i in range(20):
+        linha = []
+        for j in range(20):
+            linha.append(0)
+        matriz.append(linha)
+    return matriz
 
 #================================== Agente ==================================
 
@@ -178,7 +188,7 @@ class Agente:
         return False  # Não é possível soltar lixo fora da posição 
 
 #Função para encontrar os lixos vizinhos do agente na matriz, retornando duas listas: uma com as direções dos lixos recicláveis ("R") e outra com as direções dos lixos orgânicos ("O").
-    def encontar_lixo_vizinho(self, matriz):
+    def encontrar_lixo_vizinho(self, matriz):
         vizinhos = self.observar_posicoes_vizinhas(matriz)
 
         reciclaveis = []
@@ -209,7 +219,7 @@ class Agente:
             return self.mover_para_deposito()
 
         #Procurar Lixos vizinhos e decidir mover-se em direção a eles, se houver algum
-        reciclaveis, organicos = self.encontar_lixo_vizinho(matriz)
+        reciclaveis, organicos = self.encontrar_lixo_vizinho(matriz)
 
         if reciclaveis:
             direcao = random.choice(reciclaveis)
@@ -261,6 +271,119 @@ class Agente:
         return f"mover_{direcao}"
 
 
+class AgenteModelo(Agente):
+
+    def __init__(self):
+        super().__init__()
+
+        self.visitas = construir_matriz_visitas()
+
+        self.visitas[self.linha][self.coluna] = 1
+
+#Função atualiza por onde o agente ja passou
+    def atualizar_modelo(self):
+        self.visitas[self.linha][self.coluna] += 1
+
+    def executar_acao(self, acao, matriz):
+        super().executar_acao(acao, matriz)
+        self.atualizar_modelo()
+
+    def encontar_direcoes_nao_visitadas(self, matriz):
+        vizinhos = self.observar_posicoes_vizinhas(matriz)
+
+        direcoes = []
+
+        deslocamento = {
+            "cima_esquerda": (-1,-1),
+            "cima": (-1,0),
+            "cima_direita": (-1,1),
+            "esquerda": (0,-1),
+            "direita": (0,1),
+            "baixo_esquerda": (1,-1),
+            "baixo": (1,0),
+            "baixo_direita": (1,1)
+        }
+        for direcao in vizinhos:
+            dl, dc = deslocamento[direcao]
+
+            nova_linha = self.linha + dl
+            nova_coluna = self.coluna + dc
+
+            if self.visitas[nova_linha][nova_coluna] == 0:
+                direcoes.append(direcao)
+
+        return direcoes
+
+    def encontrar_direcao_menos_visitadas(self, matriz):
+        vizinhos = self.observar_posicoes_vizinhas(matriz)
+
+        deslocamento = {
+                    "cima_esquerda": (-1,-1),
+                    "cima": (-1,0),
+                    "cima_direita": (-1,1),
+                    "esquerda": (0,-1),
+                    "direita": (0,1),
+                    "baixo_esquerda": (1,-1),
+                    "baixo": (1,0),
+                    "baixo_direita": (1,1)
+        }
+
+        menor_visita = 0
+        direcoes = []
+
+        for direcao in vizinhos:
+            dl, dc = deslocamento[direcao]
+
+            nova_linha = self.linha + dl
+            nova_coluna = self.coluna + dc
+            visitas = self.visitas[nova_linha][nova_coluna]
+
+            if menor_visita is None or visitas < menor_visita:
+                menor_visita = [direcao]
+
+            elif visitas == menor_visita:
+                direcoes.append(direcao)
+
+        if direcoes:
+            return random.choice(direcoes)
+
+        return None
+
+    def decidir_acao(self, matriz):
+
+        posicao = self.observar_posicao(matriz)
+
+        if self.carga is not None and self.linha == 19 and self.coluna == 19:
+            return "soltar"
+
+        if self.carga is not None:
+            return self.mover_para_deposito()
+
+        if posicao == "O" or posicao == "R":
+            return "pegar"
+
+        reciclaveis, organicos = self.encontrar_lixo_vizinho(matriz)
+
+        if reciclaveis:
+            direcao = random.choice(reciclaveis)
+            return f"mover_{direcao}"
+        if organicos:
+                    direcao = random.choice(organicos)
+                    return f"mover_{direcao}"
+
+        direcoes_nao_visitadas = self.encontar_direcoes_nao_visitadas(matriz)
+
+        if direcoes_nao_visitadas:
+            direcao = random.choice(direcoes_nao_visitadas)
+            return f"mover_{direcao}"
+
+        direcao = self.encontrar_direcao_menos_visitadas(matriz)
+
+        if direcao:
+            return f"mover_{direcao}"
+        
+        return self.movimento_aleatorio() 
+
 #================================== Execução Agentes ==================================
 #Função implementar o Agente Reativo Simples
 def simular_reativo_simples():
@@ -310,12 +433,78 @@ def simular_reativo_simples():
         taxa_sucesso,
         NUM_EXECUCOES
     )
+
+def simular_baseado_modelo():
+    NUM_EXECUCOES = 30
+    LIMITE_SEGURACA = 8000
+
+    total_coletados = 0
+    total_entregues = 0
+    total_pontuacao = 0
+    total_passos = 0
+    sucesso = 0
+    taxa_sucesso = 0
+
+    for execucoes in range(NUM_EXECUCOES):
+
+        matriz = construir_matriz()
+        matriz[19][19] = "X" # Posição final (depósito)
+        colocar_lixos(matriz)
+
+        agente = AgenteModelo()
+
+        while agente.entregues <15 and agente.passos < LIMITE_SEGURACA:
+            acao = agente.decidir_acao(matriz)
+
+            agente.executar_acao(acao, matriz)
+
+        if agente.entregues == 15:
+            sucesso += 1
+        taxa_sucesso = (sucesso/NUM_EXECUCOES)*100
+        total_coletados += agente.coletados
+        total_entregues += agente.entregues
+        total_pontuacao += agente.pontuacao
+        total_passos += agente.passos 
+
+    media_coletados = total_coletados / NUM_EXECUCOES
+    media_entregues = total_entregues / NUM_EXECUCOES
+    media_pontuacao = total_pontuacao / NUM_EXECUCOES
+    media_passos = total_passos / NUM_EXECUCOES
+
+
+    return(
+        media_coletados,
+        media_entregues,
+        media_pontuacao,
+        media_passos,
+        sucesso,
+        taxa_sucesso,
+        NUM_EXECUCOES
+    )
+
 #================================== Execução Resultados ==================================
 
 coletados, entregues, pontuacao, passos, sucessos, taxa_conc, NUM_EXEC = simular_reativo_simples()
 
 print("\n======== AGENTE REATIVO SIMPLES ========")
+
 print(f"\nExeculçoes: {NUM_EXEC}\n")
+
+print(f"Média de coletados: {coletados:.2f}")
+print(f"Média de entregues: {entregues:.2f}")
+print(f"Média de pontuação: {pontuacao:.2f}")
+print(f"Média de passos: {passos:.2f}")
+
+print(f"\nExecuçoes concluídas: {sucessos}/{NUM_EXEC}")
+print(f"Taxa de conclusão: {taxa_conc:.2f}%\n")
+
+
+coletados, entregues, pontuacao, passos, sucessos, taxa_conc, NUM_EXEC = simular_baseado_modelo()
+
+print("\n======= AGENTE BASEADO EM MODELO =======")
+
+print(f"\nExeculçoes: {NUM_EXEC}\n")
+
 print(f"Média de coletados: {coletados:.2f}")
 print(f"Média de entregues: {entregues:.2f}")
 print(f"Média de pontuação: {pontuacao:.2f}")
