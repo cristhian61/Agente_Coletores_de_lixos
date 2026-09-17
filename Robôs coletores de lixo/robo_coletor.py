@@ -57,6 +57,14 @@ def colocar_lixos(matriz):
                 break
         matriz[linha][coluna] = "R" #Lixos Recicláveis
 
+def contar_lixos(matriz):
+        quantidade = 0
+
+        for linha in matriz:
+            for elemento in linha:
+                if elemento == "O" or elemento == "R":
+                    quantidade += 1
+        return quantidade
 
 #================================== Agente ==================================
 
@@ -69,6 +77,7 @@ class Agente:
         self.pontuacao = 0
         self.passos = 0
         self.coletados = 0
+        self.entregues = 0
 
 #Os IFs dentro das funções de movimentação garantem que o agente não saia dos limites da matriz (0 a 19 para linhas e colunas).
     def mover_direita(self):
@@ -85,7 +94,7 @@ class Agente:
         if self.linha > 0:
             self.linha -= 1
             self.passos += 1
-    
+
     def mover_baixo(self):
         if self.linha < 19:
             self.linha += 1
@@ -163,6 +172,7 @@ class Agente:
                     self.pontuacao += 5  # Pontuação para lixo reciclável
 
                 self.carga = None
+                self.entregues += 1
                 return True  # Lixo solto com sucesso
 
         return False  # Não é possível soltar lixo fora da posição 
@@ -187,7 +197,7 @@ class Agente:
         posicao = self.observar_posicao(matriz)
 
         #Pegar lixo se estiver em uma posição com lixo orgânico ("O") ou reciclável ("R") e não estiver carregando nenhum lixo
-        if self.carga is None and (posicao == "0" or posicao == "R"):
+        if self.carga is None and (posicao == "O" or posicao == "R"):
             return "pegar"
 
         #Soltar lixo na posição final (19,19) se estiver carregando algum lixo
@@ -196,7 +206,7 @@ class Agente:
 
         #Mover-se em direção à posição final (19,19) se estiver carregando algum lixo
         if self.carga is not None:
-            return "mover_para_deposito"
+            return self.mover_para_deposito()
 
         #Procurar Lixos vizinhos e decidir mover-se em direção a eles, se houver algum
         reciclaveis, organicos = self.encontar_lixo_vizinho(matriz)
@@ -223,17 +233,16 @@ class Agente:
 
         elif acao.startswith("mover_"):
                     direcao = acao.replace("mover_", "")
-                    self.mover_para_direcao(direcao)
-        
-        
+                    return self.mover_para_direcao(direcao)
 
 #Função para mover o agente em direção à posição final (19,19) na matriz, chamada quando o agente está carregando algum lixo. O agente se move para baixo e para a direita até alcançar a posição final.
     def mover_para_deposito(self):
         if self.linha <19:
-            self.mover_baixo()
+            return "mover_baixo"
         if self.coluna <19:
-            self.mover_direita()
+            return "mover_direita"
         return None
+
 #Função para escolher uma direção aleatória para o agente se mover, garantindo que ele não saia dos limites da matriz. A função retorna a ação de movimento escolhida.
     def movimento_aleatorio(self):
         direcoes = []
@@ -254,24 +263,33 @@ class Agente:
 
 #================================== Execução ==================================
 
-matriz = construir_matriz()
-matriz[19][19] = "X"  # Posição final do depósito de lixo
-matriz[0][2] = "R"
-colocar_lixos(matriz)
+def simular_reativo_simples():
+    matriz = construir_matriz()
+    matriz[19][19] = "X" # Posição final (depósito)
+    colocar_lixos(matriz)
 
-agente = Agente()
+    agente = Agente()
 
-for passo in range(20):
-    print(f"\n\n---- Passo {passo + 1} ----")
+    LIMITE_SEGURACA = 8000
 
-    mostrar_matriz(matriz)
+    while agente.entregues <15 and agente.passos < LIMITE_SEGURACA:
+        acao = agente.decidir_acao(matriz)
 
-    acao = agente.decidir_acao(matriz)
-    print("Ação escolhida:", acao)
+        agente.executar_acao(acao, matriz)
 
-    agente.executar_acao(acao, matriz)
+    return agente
 
-    print("Posição:", agente.linha, agente.coluna)
-    print("Carga:", agente.carga)
-    print("Coletados:", agente.coletados)
-    print("Pontuação:", agente.pontuacao)
+#================================== Execução ==================================
+
+resultado = simular_reativo_simples()
+
+print("\n======== RESULTADO ========")
+print("Coletados: ", resultado.coletados)
+print("Entregues: ", resultado.entregues)
+print("Pontuação: ", resultado.pontuacao)
+print("Passos: ", resultado.passos)
+
+if resultado.entregues == 15:
+    print("Todos os lixos foram coletados")
+else:
+    print("O Agente atingiu o limite de passos")
