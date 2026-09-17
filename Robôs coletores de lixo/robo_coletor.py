@@ -400,6 +400,117 @@ class AgenteModelo(Agente):
         
         return self.movimento_aleatorio() 
 
+
+class AgenteBDI(Agente):
+    def __init__(self):
+        super().__init__()
+
+        self.crencas = {
+            "posicao": (self.linha, self.coluna),
+            "carga": self.carga,
+            "deposito": (19,19)
+        }
+
+        self.desejos = [
+            "coletar_reciclavel",
+            "coletar_organico",
+            "ir_ao_deposito",
+            "minimizar_passos"
+        ]
+
+        self.intenceos = None
+
+    def atualizar_crenca(self):
+        self.crencas["posicao"] = (self.linha, self.coluna)
+        self.crencas["carga"] = self.carga
+
+    def gerar_opcoes(self, matriz):
+        opcoes = []
+
+        if self.carga is not None:
+            opcoes.append("ir_ao_deposito")
+            return opcoes
+        posicao = self.observar_posicao(matriz)
+
+        if posicao == "R":
+            opcoes.append("coletar_reciclavel")
+        elif posicao == "O":
+            opcoes.append("coletar_organico")
+
+        reciclaveis, organicos = self.encontrar_lixo_vizinho(matriz)
+
+        if reciclaveis and "coletar_reciclavel" not in opcoes:
+            opcoes.append("coletar_reciclavel")
+        if organicos and "coletar_organico" not in opcoes:
+            opcoes.append("coletar_organico")
+
+        opcoes.append("explorar")
+
+        return opcoes
+
+    def selecionar_intencao(self, opcoes):
+        if "coletar_reciclavel" in opcoes:
+            self.intenceos = "coletar_reciclavel"
+
+        elif "coletar_organico" in opcoes:
+            self.intenceos = "coletar_organico"
+
+        elif "ir_ao_deposito" in opcoes:
+            self.intenceos = "ir_ao_deposito"
+
+        elif "explorar" in opcoes:
+            self.intenceos = "explorar"
+
+        else:
+            self.intenceos = None
+
+    def selecionar_acao(self, matriz):
+
+        #Intenção: ir ao deposito
+        if self.intenceos == "ir_ao_deposito":
+            if self.linha == 19 and self.coluna == 19:
+                return "soltar"
+            return self.mover_para_deposito()
+
+        #Intenção: coletar reciclavel
+        if self.intenceos == "coletar_reciclavel":
+            posicao = self.observar_posicao(matriz)
+            if posicao == "R":
+                return "pegar"
+
+            reciclaveis, organicos = self.encontrar_lixo_vizinho(matriz)
+
+            if reciclaveis:
+                direcao = random.choice(reciclaveis)
+                return f"mover_{direcao}"
+
+        #Intenção: coletar organico
+        if self.intenceos == "coletar_organico":
+            posicao = self.observar_posicao(matriz)
+            if posicao == "O":
+                return "pegar"
+
+            reciclaveis, organicos = self.encontrar_lixo_vizinho(matriz)
+
+            if organicos:
+                direcao = random.choice(organicos)
+                return f"mover_{direcao}"
+
+        #Intenção: explorar
+        if self.intenceos == "explorar":
+            return self.movimento_aleatorio()
+
+        return self.movimento_aleatorio()
+
+    def ciclo_bdi(self, matriz):
+        self.atualizar_crenca()
+
+        opcoes = self.gerar_opcoes(matriz)
+        self.selecionar_intencao(opcoes)
+        return self.selecionar_acao(matriz)
+
+
+
 #================================== Execução Agentes ==================================
 #Função implementar o Agente Reativo Simples
 def simular_reativo_simples(ambientes):
@@ -494,9 +605,57 @@ def simular_baseado_modelo(ambientes):
         NUM_EXECUCOES
     )
 
+def simular_bdi(ambientes):
+    NUM_EXECUCOES = len(ambientes)
+    LIMITE_SEGURACA = 8000
+
+    total_coletados = 0
+    total_entregues = 0
+    total_pontuacao = 0
+    total_passos = 0
+    sucesso = 0
+    taxa_sucesso = 0
+
+    for ambiente in ambientes:
+
+        matriz = copy.deepcopy(ambiente)
+
+        agente = AgenteBDI()
+
+        while agente.entregues <15 and agente.passos < LIMITE_SEGURACA:
+            acao = agente.ciclo_bdi(matriz)
+
+            agente.executar_acao(acao, matriz)
+
+        if agente.entregues == 15:
+            sucesso += 1
+        
+        total_coletados += agente.coletados
+        total_entregues += agente.entregues
+        total_pontuacao += agente.pontuacao
+        total_passos += agente.passos 
+
+    media_coletados = total_coletados / NUM_EXECUCOES
+    media_entregues = total_entregues / NUM_EXECUCOES
+    media_pontuacao = total_pontuacao / NUM_EXECUCOES
+    media_passos = total_passos / NUM_EXECUCOES
+
+    taxa_sucesso = (sucesso/NUM_EXECUCOES)*100
+
+    return(
+        media_coletados,
+        media_entregues,
+        media_pontuacao,
+        media_passos,
+        sucesso,
+        taxa_sucesso,
+        NUM_EXECUCOES
+    )
+
+
 #================================== Execução Resultados ==================================
 
-ambientes = criar_ambiente(30)
+ambientes = criar_ambiente(100) #o numero no argumento é a quantidade de execuções que o programa irá executar 
 
 coletados, entregues, pontuacao, passos, sucessos, taxa_conc, NUM_EXEC = simular_reativo_simples(ambientes)
 
@@ -516,6 +675,21 @@ print(f"Taxa de conclusão: {taxa_conc:.2f}%\n")
 coletados, entregues, pontuacao, passos, sucessos, taxa_conc, NUM_EXEC = simular_baseado_modelo(ambientes)
 
 print("\n======= AGENTE BASEADO EM MODELO =======")
+
+print(f"\nExeculçoes: {NUM_EXEC}\n")
+
+print(f"Média de coletados: {coletados:.2f}")
+print(f"Média de entregues: {entregues:.2f}")
+print(f"Média de pontuação: {pontuacao:.2f}")
+print(f"Média de passos: {passos:.2f}")
+
+print(f"\nExecuçoes concluídas: {sucessos}/{NUM_EXEC}")
+print(f"Taxa de conclusão: {taxa_conc:.2f}%\n")
+
+
+coletados, entregues, pontuacao, passos, sucessos, taxa_conc, NUM_EXEC = simular_bdi(ambientes)
+
+print("\n============== AGENTE BDI ==============")
 
 print(f"\nExeculçoes: {NUM_EXEC}\n")
 
