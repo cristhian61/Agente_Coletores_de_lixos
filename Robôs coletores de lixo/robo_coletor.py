@@ -261,8 +261,8 @@ class Agente:
         return f"mover_{direcao}"
 
 
-#================================== Execução ==================================
-
+#================================== Execução Agentes ==================================
+#Função implementar o Agente Reativo Simples
 def simular_reativo_simples():
     NUM_EXECUCOES = 30
     LIMITE_SEGURACA = 8000
@@ -310,7 +310,7 @@ def simular_reativo_simples():
         taxa_sucesso,
         NUM_EXECUCOES
     )
-#================================== Execução ==================================
+#================================== Execução Resultados ==================================
 
 coletados, entregues, pontuacao, passos, sucessos, taxa_conc, NUM_EXEC = simular_reativo_simples()
 
