@@ -288,7 +288,7 @@ class AgenteModelo(Agente):
         super().executar_acao(acao, matriz)
         self.atualizar_modelo()
 
-    def encontar_direcoes_nao_visitadas(self, matriz):
+    def encontrar_direcoes_nao_visitadas(self, matriz):
         vizinhos = self.observar_posicoes_vizinhas(matriz)
 
         direcoes = []
@@ -328,7 +328,7 @@ class AgenteModelo(Agente):
                     "baixo_direita": (1,1)
         }
 
-        menor_visita = 0
+        menor_visita = None
         direcoes = []
 
         for direcao in vizinhos:
@@ -339,7 +339,8 @@ class AgenteModelo(Agente):
             visitas = self.visitas[nova_linha][nova_coluna]
 
             if menor_visita is None or visitas < menor_visita:
-                menor_visita = [direcao]
+                menor_visita = visitas 
+                direcoes = [direcao]
 
             elif visitas == menor_visita:
                 direcoes.append(direcao)
@@ -371,7 +372,7 @@ class AgenteModelo(Agente):
                     direcao = random.choice(organicos)
                     return f"mover_{direcao}"
 
-        direcoes_nao_visitadas = self.encontar_direcoes_nao_visitadas(matriz)
+        direcoes_nao_visitadas = self.encontrar_direcoes_nao_visitadas(matriz)
 
         if direcoes_nao_visitadas:
             direcao = random.choice(direcoes_nao_visitadas)
