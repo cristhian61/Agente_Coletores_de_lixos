@@ -264,32 +264,61 @@ class Agente:
 #================================== Execução ==================================
 
 def simular_reativo_simples():
-    matriz = construir_matriz()
-    matriz[19][19] = "X" # Posição final (depósito)
-    colocar_lixos(matriz)
-
-    agente = Agente()
-
+    NUM_EXECUCOES = 30
     LIMITE_SEGURACA = 8000
 
-    while agente.entregues <15 and agente.passos < LIMITE_SEGURACA:
-        acao = agente.decidir_acao(matriz)
+    total_coletados = 0
+    total_entregues = 0
+    total_pontuacao = 0
+    total_passos = 0
+    sucesso = 0
+    taxa_sucesso = 0
 
-        agente.executar_acao(acao, matriz)
+    for execucoes in range(NUM_EXECUCOES):
 
-    return agente
+        matriz = construir_matriz()
+        matriz[19][19] = "X" # Posição final (depósito)
+        colocar_lixos(matriz)
 
+        agente = Agente()
+
+        while agente.entregues <15 and agente.passos < LIMITE_SEGURACA:
+            acao = agente.decidir_acao(matriz)
+
+            agente.executar_acao(acao, matriz)
+
+        if agente.entregues == 15:
+            sucesso += 1
+        taxa_sucesso = (sucesso/NUM_EXECUCOES)*100
+        total_coletados += agente.coletados
+        total_entregues += agente.entregues
+        total_pontuacao += agente.pontuacao
+        total_passos += agente.passos 
+
+    media_coletados = total_coletados / NUM_EXECUCOES
+    media_entregues = total_entregues / NUM_EXECUCOES
+    media_pontuacao = total_pontuacao / NUM_EXECUCOES
+    media_passos = total_passos / NUM_EXECUCOES
+
+
+    return(
+        media_coletados,
+        media_entregues,
+        media_pontuacao,
+        media_passos,
+        sucesso,
+        taxa_sucesso
+    )
 #================================== Execução ==================================
 
-resultado = simular_reativo_simples()
+coletados, entregues, pontuacao, passos, sucessos, taxa_conc = simular_reativo_simples()
 
-print("\n======== RESULTADO ========")
-print("Coletados: ", resultado.coletados)
-print("Entregues: ", resultado.entregues)
-print("Pontuação: ", resultado.pontuacao)
-print("Passos: ", resultado.passos)
+print("\n======== AGENTE REATIVO SIMPLES ========")
+print("\nExeculçoes: 30\n")
+print(f"Média de coletados: {coletados:.2f}")
+print(f"Média de entregues: {entregues:.2f}")
+print(f"Média de pontuação: {pontuacao:.2f}")
+print(f"Média de passos: {passos:.2f}")
 
-if resultado.entregues == 15:
-    print("Todos os lixos foram coletados")
-else:
-    print("O Agente atingiu o limite de passos")
+print(f"\nExecuçoes concluídas: {sucessos}/30")
+print(f"Taxa de conclusão: {taxa_conc:.2f}%\n")
