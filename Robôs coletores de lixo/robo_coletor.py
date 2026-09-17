@@ -312,14 +312,14 @@ def simular_reativo_simples():
     )
 #================================== Execução ==================================
 
-coletados, entregues, pontuacao, passos, sucessos, taxa_conc, num_execucoes= simular_reativo_simples()
+coletados, entregues, pontuacao, passos, sucessos, taxa_conc, NUM_EXEC = simular_reativo_simples()
 
 print("\n======== AGENTE REATIVO SIMPLES ========")
-print("f\nExeculçoes: {num_execucoes}\n")
+print(f"\nExeculçoes: {NUM_EXEC}\n")
 print(f"Média de coletados: {coletados:.2f}")
 print(f"Média de entregues: {entregues:.2f}")
 print(f"Média de pontuação: {pontuacao:.2f}")
 print(f"Média de passos: {passos:.2f}")
 
-print(f"\nExecuçoes concluídas: {sucessos}/{num_execucoes}")
+print(f"\nExecuçoes concluídas: {sucessos}/{NUM_EXEC}")
 print(f"Taxa de conclusão: {taxa_conc:.2f}%\n")
