@@ -408,7 +408,8 @@ class AgenteBDI(Agente):
         self.crencas = {
             "posicao": (self.linha, self.coluna),
             "carga": self.carga,
-            "deposito": (19,19)
+            "deposito": (19,19),
+            "lixos_conhecidos": []
         }
 
         self.desejos = [
@@ -419,10 +420,42 @@ class AgenteBDI(Agente):
         ]
 
         self.intenceos = None
+        self.visitas = construir_matriz_visitas()
+        self.visitas[self.linha][self.coluna] = 1
 
-    def atualizar_crenca(self):
+    def executar_acao(self, acao, matriz):
+        resultado = super().executar_acao(acao, matriz)
+        self.visitas[self.linha][self.coluna] += 1
+        return resultado
+
+    def atualizar_crenca(self, matriz):
         self.crencas["posicao"] = (self.linha, self.coluna)
         self.crencas["carga"] = self.carga
+
+        vizinhos = self.observar_posicoes_vizinhas(matriz)
+
+        deslocamento = {
+            "cima_esquerda": (-1,-1),
+            "cima": (-1,0),
+            "cima_direita": (-1,1),
+            "esquerda": (0,-1),
+            "direita": (0,1),
+            "baixo_esquerda": (1,-1),
+            "baixo": (1,0),
+            "baixo_direita": (1,1)
+        }
+
+        for direcao, objeto in vizinhos.items():
+            if objeto == "R" or objeto == "O":
+                dl, dc = deslocamento[direcao]
+
+                nova_linha = self.linha + dl
+                nova_coluna = self.coluna + dc
+
+                lixo = ((nova_linha, nova_coluna), objeto)
+
+                if lixo not in self.crencas["lixos_conhecidos"]:
+                    self.crencas["lixos_conhecidos"].append(lixo)
 
     def gerar_opcoes(self, matriz):
         opcoes = []
@@ -470,45 +503,197 @@ class AgenteBDI(Agente):
         if self.intenceos == "ir_ao_deposito":
             if self.linha == 19 and self.coluna == 19:
                 return "soltar"
-            return self.mover_para_deposito()
+            elif self.linha <19:
+                return "mover_baixo"
+            elif self.coluna <19:
+                return "mover_direita"
 
         #Intenção: coletar reciclavel
         if self.intenceos == "coletar_reciclavel":
-            posicao = self.observar_posicao(matriz)
-            if posicao == "R":
+            if self.observar_posicao(matriz) == "R":
                 return "pegar"
 
-            reciclaveis, organicos = self.encontrar_lixo_vizinho(matriz)
+            alvo = self.encontrar_alvo_conhecido("R")
 
-            if reciclaveis:
-                direcao = random.choice(reciclaveis)
+            if alvo is not None:
+                direcao = self.escolher_movimento_alvo(alvo)
                 return f"mover_{direcao}"
 
         #Intenção: coletar organico
         if self.intenceos == "coletar_organico":
-            posicao = self.observar_posicao(matriz)
-            if posicao == "O":
+            if self.observar_posicao(matriz) == "O":
                 return "pegar"
 
-            reciclaveis, organicos = self.encontrar_lixo_vizinho(matriz)
+            alvo = self.encontrar_alvo_conhecido("O")
 
-            if organicos:
-                direcao = random.choice(organicos)
+            if alvo is not None:
+                direcao = self.escolher_movimento_alvo(alvo)
                 return f"mover_{direcao}"
 
         #Intenção: explorar
         if self.intenceos == "explorar":
-            return self.movimento_aleatorio()
+            direcao = self.escolher_movimento_exploracao()
+            return f"mover_{direcao}"
 
         return self.movimento_aleatorio()
 
+    def escolher_movimento_exploracao(self):
+        candidatos = []
+
+        if self.linha > 0:
+            candidatos.append(("cima", self.linha - 1, self.coluna))
+        if self.linha < 19:
+            candidatos.append(("baixo", self.linha + 1, self.coluna))
+        if self.coluna > 0:
+            candidatos.append(("esquerda", self.linha, self.coluna - 1))
+        if self.coluna < 19:
+            candidatos.append(("direita", self.linha, self.coluna + 1))
+
+        menor_visita = None
+        melhores_direcoes = []
+
+        for direcao, nova_linha, nova_coluna in candidatos:
+            visitas = self.visitas[nova_linha][nova_coluna]
+
+            if menor_visita is None or visitas < menor_visita:
+                menor_visita = visitas
+                melhores_direcoes = [direcao]
+            elif visitas == menor_visita:
+                melhores_direcoes.append(direcao)
+
+        return random.choice(melhores_direcoes)
+
+    def escolher_movimento_alvo(self, alvo):
+        linha_alvo, coluna_alvo = alvo
+
+        direcoes = []
+
+        if self.linha < linha_alvo:
+            direcoes.append("baixo")
+        elif self.linha > linha_alvo:
+            direcoes.append("cima")
+
+        if self.coluna < coluna_alvo:
+            direcoes.append("direita")
+        elif self.coluna > coluna_alvo:
+            direcoes.append("esquerda")
+    
+        if not direcoes:
+            return None
+        return random.choice(direcoes)
+
+    def distancia_deposito(self):
+        distancia = abs(self.linha - 19) + abs(self.coluna - 19)
+        return distancia
+
+    def avaliar_movimento(self, direcao):
+
+        nova_linha = self.linha
+        nova_coluna = self.coluna
+
+        if direcao == "cima":
+            nova_linha -= 1
+        if direcao == "baixo":
+            nova_linha += 1
+        if direcao == "esquerda":
+            nova_coluna -= 1
+        if direcao == "direita":
+            nova_coluna += 1
+
+        distancia = abs(nova_linha - 19) + abs(nova_coluna-19)
+
+        return distancia
+
+    def distancia(self, linha, coluna, destino_linha, destino_coluna):
+        return abs(linha - destino_linha) + abs(coluna - destino_coluna)
+
+    def encontrar_lixo_mais_proximo(self, matriz, tipo):
+        menor_distancia = None
+        posicao_lixo = None
+
+        for linha in range(20):
+            for coluna in range(20):
+
+                if matriz[linha][coluna] == tipo:
+                    distancia = self.distancia(
+                        self.linha,
+                        self.coluna,
+                        linha,
+                        coluna
+                    )
+
+                    if menor_distancia is None or distancia < menor_distancia:
+
+                        menor_distancia = distancia
+                        posicao_lixo = (linha, coluna)
+
+            return posicao_lixo        
+
+    def distancia_ate(self, linha, coluna):
+        return abs(self.linha - linha) + abs(self.coluna - coluna)
+
+    def encontrar_alvo_conhecido(self, tipo_desejado):
+        candidatos = [] 
+
+        for posicao, tipo in self.crencas["lixos_conhecidos"]:
+            if tipo == tipo_desejado:
+                candidatos.append(posicao)
+
+        if not candidatos:
+            return None
+
+        menor_distancia = None
+        melhor_posicao = None
+
+        for posicao in candidatos:
+            linha, coluna = posicao
+
+            distancia = self.distancia_ate(linha, coluna)
+
+            if menor_distancia is None or distancia < menor_distancia:
+                menor_distancia = distancia
+                melhor_posicao = posicao
+        return melhor_posicao
+
+    def mover_em_direcao(self, alvo):
+        linha_alvo, coluna_alvo = alvo
+
+        if self.linha < alvo:
+            return "mover_baixo"
+        if self.linha > alvo:
+            return "mover_cima"
+        if self.coluna < alvo:
+            return "mover_direita"
+        if self.coluna > alvo:
+            return "mover_esquerda"
+
+        return None
+
+    def remover_lixo_conhecido(self, posicao):
+        novos_lixos = []
+
+        for lixo_posicao, tipo in self.crencas["lixos_conhecidos"]:
+            if lixo_posicao != posicao:
+                novos_lixos.append((lixo_posicao, tipo))
+
+        self.crencas["lixos_conhecidos"] = novos_lixos
+
+    def pegar_lixo(self, matriz):
+        posicao = (self.linha, self.coluna)
+
+        sucesso = super().pegar_lixo(matriz)
+
+        if sucesso:
+            self.remover_lixo_conhecido(posicao)
+
+        return sucesso
+
     def ciclo_bdi(self, matriz):
-        self.atualizar_crenca()
+        self.atualizar_crenca(matriz)
 
         opcoes = self.gerar_opcoes(matriz)
         self.selecionar_intencao(opcoes)
         return self.selecionar_acao(matriz)
-
 
 
 #================================== Execução Agentes ==================================
@@ -549,15 +734,17 @@ def simular_reativo_simples(ambientes):
 
     taxa_sucesso = (sucesso/NUM_EXECUCOES)*100
 
-    return(
-        media_coletados,
-        media_entregues,
-        media_pontuacao,
-        media_passos,
-        sucesso,
-        taxa_sucesso,
-        NUM_EXECUCOES
-    )
+    print("\n======== AGENTE REATIVO SIMPLES ========")
+
+    print(f"\nExeculçoes: {NUM_EXECUCOES}\n")
+
+    print(f"Média de coletados: {media_coletados:.2f}")
+    print(f"Média de entregues: {media_entregues:.2f}")
+    print(f"Média de pontuação: {media_pontuacao:.2f}")
+    print(f"Média de passos: {media_passos:.2f}")
+
+    print(f"\nExecuçoes concluídas: {sucesso}/{NUM_EXECUCOES}")
+    print(f"Taxa de conclusão: {taxa_sucesso:.2f}%\n")
 
 def simular_baseado_modelo(ambientes):
     NUM_EXECUCOES = len(ambientes)
@@ -595,15 +782,17 @@ def simular_baseado_modelo(ambientes):
 
     taxa_sucesso = (sucesso/NUM_EXECUCOES)*100
 
-    return(
-        media_coletados,
-        media_entregues,
-        media_pontuacao,
-        media_passos,
-        sucesso,
-        taxa_sucesso,
-        NUM_EXECUCOES
-    )
+    print("\n======= AGENTE BASEADO EM MODELO =======")
+    
+    print(f"\nExeculçoes: {NUM_EXECUCOES}\n")
+
+    print(f"Média de coletados: {media_coletados:.2f}")
+    print(f"Média de entregues: {media_entregues:.2f}")
+    print(f"Média de pontuação: {media_pontuacao:.2f}")
+    print(f"Média de passos: {media_passos:.2f}")
+
+    print(f"\nExecuçoes concluídas: {sucesso}/{NUM_EXECUCOES}")
+    print(f"Taxa de conclusão: {taxa_sucesso:.2f}%\n")
 
 def simular_bdi(ambientes):
     NUM_EXECUCOES = len(ambientes)
@@ -642,61 +831,25 @@ def simular_bdi(ambientes):
 
     taxa_sucesso = (sucesso/NUM_EXECUCOES)*100
 
-    return(
-        media_coletados,
-        media_entregues,
-        media_pontuacao,
-        media_passos,
-        sucesso,
-        taxa_sucesso,
-        NUM_EXECUCOES
-    )
+    print("\n============== AGENTE BDI ==============")
+    
+    print(f"\nExeculçoes: {NUM_EXECUCOES}\n")
+
+    print(f"Média de coletados: {media_coletados:.2f}")
+    print(f"Média de entregues: {media_entregues:.2f}")
+    print(f"Média de pontuação: {media_pontuacao:.2f}")
+    print(f"Média de passos: {media_passos:.2f}")
+
+    print(f"\nExecuçoes concluídas: {sucesso}/{NUM_EXECUCOES}")
+    print(f"Taxa de conclusão: {taxa_sucesso:.2f}%\n")
 
 
 #================================== Execução Resultados ==================================
 
-ambientes = criar_ambiente(100) #o numero no argumento é a quantidade de execuções que o programa irá executar 
+ambientes = criar_ambiente(30) #o numero no argumento é a quantidade de execuções que o programa irá executar 
 
-coletados, entregues, pontuacao, passos, sucessos, taxa_conc, NUM_EXEC = simular_reativo_simples(ambientes)
+simular_reativo_simples(ambientes)
 
-print("\n======== AGENTE REATIVO SIMPLES ========")
+simular_baseado_modelo(ambientes)
 
-print(f"\nExeculçoes: {NUM_EXEC}\n")
-
-print(f"Média de coletados: {coletados:.2f}")
-print(f"Média de entregues: {entregues:.2f}")
-print(f"Média de pontuação: {pontuacao:.2f}")
-print(f"Média de passos: {passos:.2f}")
-
-print(f"\nExecuçoes concluídas: {sucessos}/{NUM_EXEC}")
-print(f"Taxa de conclusão: {taxa_conc:.2f}%\n")
-
-
-coletados, entregues, pontuacao, passos, sucessos, taxa_conc, NUM_EXEC = simular_baseado_modelo(ambientes)
-
-print("\n======= AGENTE BASEADO EM MODELO =======")
-
-print(f"\nExeculçoes: {NUM_EXEC}\n")
-
-print(f"Média de coletados: {coletados:.2f}")
-print(f"Média de entregues: {entregues:.2f}")
-print(f"Média de pontuação: {pontuacao:.2f}")
-print(f"Média de passos: {passos:.2f}")
-
-print(f"\nExecuçoes concluídas: {sucessos}/{NUM_EXEC}")
-print(f"Taxa de conclusão: {taxa_conc:.2f}%\n")
-
-
-coletados, entregues, pontuacao, passos, sucessos, taxa_conc, NUM_EXEC = simular_bdi(ambientes)
-
-print("\n============== AGENTE BDI ==============")
-
-print(f"\nExeculçoes: {NUM_EXEC}\n")
-
-print(f"Média de coletados: {coletados:.2f}")
-print(f"Média de entregues: {entregues:.2f}")
-print(f"Média de pontuação: {pontuacao:.2f}")
-print(f"Média de passos: {passos:.2f}")
-
-print(f"\nExecuçoes concluídas: {sucessos}/{NUM_EXEC}")
-print(f"Taxa de conclusão: {taxa_conc:.2f}%\n")
+simular_bdi(ambientes)
